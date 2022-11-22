@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/list"
 	"fmt"
 	"github.com/miekg/dns"
 	"net"
@@ -18,17 +17,17 @@ type DnsQuery struct {
 type Stress struct {
 	srv, port string
 	timeout   time.Duration
-	queries   *list.List
+	queries   []DnsQuery
+	queryIdx  int
 	qMu       *sync.Mutex
 	wg        *sync.WaitGroup
 	workerNum int
 	debug     bool
 
 	// stat
-	failedQueries      *list.List
+	failedQueries      []DnsQuery
 	fqMu               *sync.Mutex
 	succeedQueries     uint64
-	totalQueries       int
 	startTime, endTime time.Time
 }
 
@@ -37,20 +36,14 @@ func NewStress(srv, port string, timeout time.Duration, queries []DnsQuery, work
 	s.srv = srv
 	s.port = port
 	s.timeout = timeout
-	s.queries = list.New()
+	s.queries = queries
+	s.queryIdx = 0
 	s.qMu = &sync.Mutex{}
 	s.wg = &sync.WaitGroup{}
 	s.workerNum = workNum
 	s.debug = debug
-
-	s.failedQueries = list.New()
 	s.fqMu = &sync.Mutex{}
 	s.succeedQueries = 0
-
-	for i := 0; i < len(queries); i++ {
-		s.queries.PushBack(queries[i])
-	}
-	s.totalQueries = s.queries.Len()
 
 	return &s
 }
@@ -67,15 +60,15 @@ func (s *Stress) Start() *Stress {
 }
 
 func (s *Stress) Result() string {
-	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d,  success rate:%.4f, elapsed:%.3f(s)",
-		s.totalQueries, s.succeedQueries, s.failedQueries.Len(),
-		float64(s.succeedQueries)/float64(s.totalQueries),
+	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s)",
+		len(s.queries), s.succeedQueries, len(s.failedQueries),
+		float64(s.succeedQueries)/float64(len(s.queries))*100,
 		s.endTime.Sub(s.startTime).Seconds())
 }
 
 func (s *Stress) doDnsQuery(workID int) {
 	for {
-		qDomain, qType := s.getOne()
+		qDomain, qType := s.getOneQuery()
 		if qDomain == "" {
 			s.wg.Done()
 			break
@@ -96,24 +89,23 @@ func (s *Stress) doDnsQuery(workID int) {
 			atomic.AddUint64(&s.succeedQueries, 1)
 		} else {
 			s.fqMu.Lock()
-			s.failedQueries.PushBack(DnsQuery{Domain: qDomain, Type: qType})
+			s.failedQueries = append(s.failedQueries, DnsQuery{Domain: qDomain, Type: qType})
 			s.fqMu.Unlock()
 
 			if s.debug {
-				fmt.Printf("worker[%d]: exchange %s[%s] err:%v\n", workID, qDomain, qType, err)
+				fmt.Printf("worker[%d]: query %s[%s] err:%v\n", workID, qDomain, qType, err)
 			}
 		}
 	}
 }
 
-func (s *Stress) getOne() (qDomain, qType string) {
+func (s *Stress) getOneQuery() (qDomain, qType string) {
 	s.qMu.Lock()
 	defer s.qMu.Unlock()
-	element := s.queries.Front()
-	if element == nil {
-		return "", ""
+	if s.queryIdx < len(s.queries) {
+		q := s.queries[s.queryIdx]
+		s.queryIdx++
+		return q.Domain, q.Type
 	}
-	s.queries.Remove(element)
-	q := element.Value.(DnsQuery)
-	return q.Domain, q.Type
+	return "", ""
 }

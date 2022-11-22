@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// usage: ./dnsbench -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 200 -timeout 3
+// usage: ./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 200 -timeout 3
 func main() {
 	var (
 		srv       = flag.String("srv", "127.0.0.1", "DNS server IP address to stress")
@@ -30,7 +30,7 @@ func main() {
 		fmt.Printf("get top 1m domains err:%v, exit", err)
 		return
 	}
-	fmt.Printf("got %d domains\n", len(domains))
+	fmt.Printf("alexa top1m: got %d domains\n", len(domains))
 
 	if *domainNum > len(domains) {
 		*domainNum = len(domains)
