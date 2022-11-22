@@ -11,6 +11,7 @@ func main() {
 	var (
 		srv       = flag.String("srv", "127.0.0.1", "DNS server IP address to stress")
 		port      = flag.String("port", "53", "DNS server Port to test")
+		tfile     = flag.String("tfile", "", "tfile Specifies the input data file. If not specified, use alexa top 1 million as default")
 		workerNum = flag.Int("workerNum", 1, "Number of simultaneous test workers to run")
 		domainNum = flag.Int("domainNum", 1, "How many domain names to use in the test")
 		timeout   = flag.Int("timeout", 5, "UDP timeout (seconds, default 5s)")
@@ -25,12 +26,19 @@ func main() {
 	}
 	flag.Parse()
 
-	domains, err := GetTop1mDomains()
+	var domains []string
+	var err error
+	if *tfile == "" {
+		domains, err = GetTop1mDomains()
+	} else {
+		domains, err = GetTestDomains(*tfile)
+	}
+
 	if err != nil {
-		fmt.Printf("get top 1m domains err:%v, exit", err)
+		fmt.Printf("get domains err:%v, exit\n", err)
 		return
 	}
-	fmt.Printf("alexa top1m: got %d domains\n", len(domains))
+	fmt.Printf("got %d domains\n", len(domains))
 
 	if *domainNum > len(domains) {
 		*domainNum = len(domains)

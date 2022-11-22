@@ -15,7 +15,7 @@ import (
 const (
 	alexaDir  = "https://s3.amazonaws.com/alexa-static"
 	alexaFile = "top-1m.csv.zip"
-	dataDir   = "top1m"
+	dataDir   = "testdata/top1m"
 )
 
 func getTop1mFileFromAWS() ([]byte, error) {
@@ -99,4 +99,13 @@ func GetTop1mDomains() (domains []string, err error) {
 	}
 
 	return domains, nil
+}
+
+func GetTestDomains(filepath string) (domains []string, err error) {
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(string(content), "\n")
+	return lines, nil
 }
