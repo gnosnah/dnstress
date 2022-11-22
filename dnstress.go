@@ -60,10 +60,11 @@ func (s *Stress) Start() *Stress {
 }
 
 func (s *Stress) Result() string {
-	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s)",
+	elapsed := s.endTime.Sub(s.startTime).Seconds()
+	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s), QPS:%.2f",
 		len(s.queries), s.succeedQueries, len(s.failedQueries),
 		float64(s.succeedQueries)/float64(len(s.queries))*100,
-		s.endTime.Sub(s.startTime).Seconds())
+		elapsed, float64(len(s.queries))/elapsed)
 }
 
 func (s *Stress) doDnsQuery(workID int) {
