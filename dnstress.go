@@ -24,7 +24,7 @@ type Stress struct {
 	workerNum int
 	debug     bool
 
-	// stat
+	// stats
 	failedQueries      []DnsQuery
 	fqMu               *sync.Mutex
 	succeedQueries     uint64
@@ -82,6 +82,7 @@ func (s *Stress) doDnsQuery(workID int) {
 		client := new(dns.Client)
 		client.DialTimeout = s.timeout
 		client.ReadTimeout = s.timeout
+		client.UDPSize = 4096
 		reqMsg := new(dns.Msg)
 		qDomain = dns.Fqdn(qDomain)
 		reqMsg.SetQuestion(qDomain, dns.StringToType[qType])
