@@ -15,10 +15,9 @@ import (
 const (
 	alexaDir  = "https://s3.amazonaws.com/alexa-static"
 	alexaFile = "top-1m.csv.zip"
-	dataDir   = "testdata/top1m"
 )
 
-func getTop1mFileFromAWS() ([]byte, error) {
+func getTop1mFileFromAWS(dataDir string) ([]byte, error) {
 	fileName := filepath.Join(dataDir, alexaFile)
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		resp, err := http.Get(alexaDir + "/" + alexaFile)
@@ -27,11 +26,6 @@ func getTop1mFileFromAWS() ([]byte, error) {
 		}
 		defer resp.Body.Close()
 		b, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		err = os.MkdirAll(dataDir, 0777)
 		if err != nil {
 			return nil, err
 		}
@@ -87,8 +81,8 @@ func parseTop1mFile(data []byte) ([]string, error) {
 	return domains, nil
 }
 
-func GetTop1mDomains() (domains []string, err error) {
-	buf, err := getTop1mFileFromAWS()
+func GetTop1mDomains(dataDir string) (domains []string, err error) {
+	buf, err := getTop1mFileFromAWS(dataDir)
 	if err != nil {
 		return nil, err
 	}
