@@ -3,18 +3,20 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"time"
 )
 
-// usage: ./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 200 -timeout 3
 func main() {
 	var (
 		srv       = flag.String("srv", "127.0.0.1", "DNS server IP address to stress")
 		port      = flag.String("port", "53", "DNS server Port to test")
+		dataDir   = flag.String("dataDir", "testdata", "Data file directory")
 		tfile     = flag.String("tfile", "", "tfile Specifies the input data file. If not specified, use alexa top 1 million as default")
 		workerNum = flag.Int("workerNum", 1, "Number of simultaneous test workers to run")
 		domainNum = flag.Int("domainNum", 1, "How many domain names to use in the test")
-		timeout   = flag.Int("timeout", 5, "UDP timeout (seconds, default 5s)")
+		timeout   = flag.Int("timeout", 5, "UDP timeout(seconds)")
+		tp        = flag.Float64("tp", 0.95, "RTT top percentile")
 		debug     = flag.Bool("debug", false, "Show debug info (default false)")
 	)
 
@@ -28,8 +30,15 @@ func main() {
 
 	var domains []string
 	var err error
+
+	err = os.MkdirAll(*dataDir, 0777)
+	if err != nil {
+		fmt.Printf("create dataDir(%s) err:%v", *dataDir, err)
+		return
+	}
+
 	if *tfile == "" {
-		domains, err = GetTop1mDomains()
+		domains, err = GetTop1mDomains(*dataDir)
 	} else {
 		domains, err = GetTestDomains(*tfile)
 	}
@@ -49,7 +58,7 @@ func main() {
 		queries = append(queries, DnsQuery{Domain: domains[i], Type: "A"})
 	}
 
-	s := NewStress(*srv, *port, (time.Duration)(*timeout)*time.Second, queries, *workerNum, *debug)
+	s := NewStress(*srv, *port, (time.Duration)(*timeout)*time.Second, queries, *workerNum, *tp, *debug)
 	fmt.Println("stress...")
 	result := s.Start().Result()
 	fmt.Printf("result: %s\n", result)
