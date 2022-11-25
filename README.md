@@ -15,39 +15,42 @@ go build -o dnstress
 ```
 Simple DNS stress tool
 Options:
+  -dataDir string
+    	Data file directory (default "testdata")
   -debug
-        Show debug info (default false)
+    	Show debug info (default false)
   -domainNum int
-        How many domain names to use in the test (default 1)
+    	How many domain names to use in the test (default 1)
   -port string
-        DNS server Port to test (default "53")
+    	DNS server Port to test (default "53")
   -srv string
-        DNS server IP address to stress (default "127.0.0.1")
+    	DNS server IP address to stress (default "127.0.0.1")
   -tfile string
-        tfile Specifies the input data file. If not specified, use alexa top 1 million as default
+    	tfile Specifies the input data file. If not specified, use alexa top 1 million as default
   -timeout int
-        UDP timeout (seconds, default 5s) (default 5)
+    	UDP timeout(seconds) (default 5)
+  -tp float
+    	RTT top percentile (default 0.95)
   -workerNum int
-        Number of simultaneous test workers to run (default 1)
+    	Number of simultaneous test workers to run (default 1)
 ```
 
 ## output example
 
 - use alex top 1m as data file
 ```
- ./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 2000 -timeout 10                               
-got 648362 domains
+./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 2000 -timeout 10
+got 746076 domains
 stress...
-result: Queries total:2000, succeed:1907, failed:93, success rate:95.35%, elapsed:124.62(s), QPS:16.05
+result: Queries total:2000, succeed:1986, failed:14, success rate:99.30%, elapsed:40.96(s), TP95:344(Milliseconds)
 ```
 
 - use specified data file
 ```
-
-./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 2000 -timeout 3 -tfile ./testdata/China.top500            
+./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 2000 -timeout 3 -tfile ./testdata/China.top500
 got 500 domains
 stress...
-result: Queries total:500, succeed:463, failed:37, success rate:92.60%, elapsed:19.26(s), QPS:25.96
+result: Queries total:500, succeed:496, failed:4, success rate:99.20%, elapsed:9.01(s), TP95:235(Milliseconds)
 
 ```
 
@@ -56,8 +59,6 @@ result: Queries total:500, succeed:463, failed:37, success rate:92.60%, elapsed:
 ./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 200 -timeout 10 -tfile ./testdata/China.top500 -debug true
 got 500 domains
 stress...
-worker[0]: query hao123.com.[A] err:read udp 192.168.21.152:59532->8.8.8.8:53: i/o timeout
-worker[4]: query 2144.com.[A] err:read udp 192.168.21.152:54133->8.8.8.8:53: i/o timeout
-...
-result: Queries total:200, succeed:193, failed:7, success rate:96.50%, elapsed:14.70(s), QPS:13.61
+worker[9]: query 4399.com.[A] rtt:10001069666, err:read udp 10.2.8.179:64435->8.8.8.8:53: i/o timeout
+result: Queries total:200, succeed:199, failed:1, success rate:99.50%, elapsed:10.21(s), TP95:183(Milliseconds)
 ```
