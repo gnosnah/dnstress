@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/miekg/dns"
+	"math"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,6 +24,7 @@ type Stress struct {
 	qMu       *sync.Mutex
 	wg        *sync.WaitGroup
 	workerNum int
+	tp        float64
 	debug     bool
 
 	// stats
@@ -29,9 +32,10 @@ type Stress struct {
 	fqMu               *sync.Mutex
 	succeedQueries     uint64
 	startTime, endTime time.Time
+	elapsed            []int64
 }
 
-func NewStress(srv, port string, timeout time.Duration, queries []DnsQuery, workNum int, debug bool) *Stress {
+func NewStress(srv, port string, timeout time.Duration, queries []DnsQuery, workNum int, tp float64, debug bool) *Stress {
 	var s Stress
 	s.srv = srv
 	s.port = port
@@ -42,8 +46,10 @@ func NewStress(srv, port string, timeout time.Duration, queries []DnsQuery, work
 	s.wg = &sync.WaitGroup{}
 	s.workerNum = workNum
 	s.debug = debug
+	s.tp = tp
 	s.fqMu = &sync.Mutex{}
 	s.succeedQueries = 0
+	s.elapsed = make([]int64, len(s.queries))
 
 	return &s
 }
@@ -61,19 +67,22 @@ func (s *Stress) Start() *Stress {
 
 func (s *Stress) Result() string {
 	elapsed := s.endTime.Sub(s.startTime).Seconds()
-	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s), QPS:%.2f",
+	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s), TP95:%d(Milliseconds)",
 		len(s.queries), s.succeedQueries, len(s.failedQueries),
 		float64(s.succeedQueries)/float64(len(s.queries))*100,
-		elapsed, float64(len(s.queries))/elapsed)
+		elapsed,
+		time.Duration(s.topPercentile(s.tp)).Milliseconds(),
+	)
 }
 
 func (s *Stress) doDnsQuery(workID int) {
 	for {
-		qDomain, qType := s.getOneQuery()
-		if qDomain == "" {
+		idx := s.getOneQuery()
+		if idx == errIndex {
 			s.wg.Done()
 			break
 		}
+		qDomain, qType := s.queries[idx].Domain, s.queries[idx].Type
 
 		if qType == "" {
 			qType = "A" // default A
@@ -86,7 +95,7 @@ func (s *Stress) doDnsQuery(workID int) {
 		reqMsg := new(dns.Msg)
 		qDomain = dns.Fqdn(qDomain)
 		reqMsg.SetQuestion(qDomain, dns.StringToType[qType])
-		_, _, err := client.Exchange(reqMsg, net.JoinHostPort(s.srv, s.port))
+		_, rtt, err := client.Exchange(reqMsg, net.JoinHostPort(s.srv, s.port))
 		if err == nil {
 			atomic.AddUint64(&s.succeedQueries, 1)
 		} else {
@@ -95,19 +104,29 @@ func (s *Stress) doDnsQuery(workID int) {
 			s.fqMu.Unlock()
 
 			if s.debug {
-				fmt.Printf("worker[%d]: query %s[%s] err:%v\n", workID, qDomain, qType, err)
+				fmt.Printf("worker[%d]: query %s[%s] rtt:%d, err:%v\n", workID, qDomain, qType, rtt, err)
 			}
 		}
+		s.elapsed[idx] = rtt.Nanoseconds()
 	}
 }
 
-func (s *Stress) getOneQuery() (qDomain, qType string) {
+const errIndex = -1
+
+func (s *Stress) getOneQuery() int {
 	s.qMu.Lock()
 	defer s.qMu.Unlock()
 	if s.queryIdx < len(s.queries) {
-		q := s.queries[s.queryIdx]
+		idx := s.queryIdx
 		s.queryIdx++
-		return q.Domain, q.Type
+		return idx
 	}
-	return "", ""
+	return errIndex
+}
+
+func (s *Stress) topPercentile(tp float64) int64 {
+	sort.Slice(s.elapsed, func(i, j int) bool { return s.elapsed[i] < s.elapsed[j] })
+	f := math.Ceil(tp * float64(len(s.elapsed)))
+	idx := int(f)
+	return s.elapsed[idx-1]
 }
