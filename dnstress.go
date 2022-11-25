@@ -67,10 +67,11 @@ func (s *Stress) Start() *Stress {
 
 func (s *Stress) Result() string {
 	elapsed := s.endTime.Sub(s.startTime).Seconds()
-	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s), TP95:%d(Milliseconds)",
+	return fmt.Sprintf("Queries total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s), TP%d:%d(Milliseconds)",
 		len(s.queries), s.succeedQueries, len(s.failedQueries),
 		float64(s.succeedQueries)/float64(len(s.queries))*100,
 		elapsed,
+		int(s.tp*100),
 		time.Duration(s.topPercentile(s.tp)).Milliseconds(),
 	)
 }
