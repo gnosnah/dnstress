@@ -2,63 +2,78 @@
 
 A simple dns query stress tool built on github.com/miekg/dns.
 
-Use specified data file or alexa top 1 million as query domain source. See **testdata** directory.
-
-top1m: http://s3.amazonaws.com/alexa-static/top-1m.csv.zip
-
 ## build
 ```
-go build -o dnstress
+go build -o dnstress cmd/main.go
 ```
 
 ## usage
 ```
-Simple DNS stress tool
-Options:
-  -dataDir string
-    	Data file directory (default "testdata")
-  -debug
-    	Show debug info (default false)
-  -domainNum int
-    	How many domain names to use in the test (default 1)
-  -port string
-    	DNS server Port to test (default "53")
-  -srv string
-    	DNS server IP address to stress (default "127.0.0.1")
-  -tfile string
-    	tfile Specifies the input data file. If not specified, use alexa top 1 million as default
-  -timeout int
-    	UDP timeout(seconds) (default 5)
-  -tp float
-    	RTT top percentile (default 0.95)
-  -workerNum int
-    	Number of simultaneous test workers to run (default 1)
+dnstress version 1.0.0
+options:
+  -D    set the DNSSEC OK bit (implies EDNS)
+  -T string
+        specify the default query type (default "A")
+  -c int
+        specify the number of concurrent queries (default 1)
+  -d string
+        specify the input data file (default "example.txt")
+  -g    show real-time progress
+  -h    show help
+  -l int
+        specify how a limit for how long to run tests in seconds
+  -p int
+        set the port on which to query the server (default 53)
+  -q int
+        specify the maximum number of queries outstanding
+  -r int
+        set RTT statistics array size (default 50000)
+  -s string
+        sets the server to query (default "127.0.0.1")
+  -t int
+        specify the timeout for query completion in seconds (default 5)
+  -u int
+        set RTT statistics top percentile value(1-99) (default 95)
+  -v    show debug info
 ```
 
 ## output example
 
-- use alex top 1m as data file
+- set the maximum number of queries outstanding ： 1000
+
 ```
-./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 2000 -timeout 10
-got 746076 domains
-stress...
-result: Queries total:2000, succeed:1986, failed:14, success rate:99.30%, elapsed:40.96(s), TP95:344(Milliseconds)
+$ ./dnstress -d example.txt -s 8.8.8.8 -c 50 -q 1000 
+Statistics:
++----------------------+---------------------+
+| Queries total        | 1000                |
+| Queries succeeded    | 845                 |
+| Queries failed       | 155                 |
+| Queries success rate | 84.50%              |
+| Queries QPS          | 49                  |
+| Queries RTT TP95     | 54ms                |
+| Queries started at   | 2024-10-27 20:50:55 |
+| Queries finished at  | 2024-10-27 20:51:15 |
+| Queries elapsed      | 20s                 |
++----------------------+---------------------+
+
 ```
 
-- use specified data file
+- show real-time progress
 ```
-./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 2000 -timeout 3 -tfile ./testdata/China.top500
-got 500 domains
-stress...
-result: Queries total:500, succeed:496, failed:4, success rate:99.20%, elapsed:9.01(s), TP95:235(Milliseconds)
+$ ./dnstress -s 8.8.8.8 -c 50 -q 1000 -d example.txt -g
+[progress] total:606, succeed:560, failed:46, success rate:92.41%, elapsed:6s, qps:100
+...
 
 ```
 
 - show debug info
 ```
-./dnstress -srv 8.8.8.8 -port 53 -workerNum 10 -domainNum 200 -timeout 10 -tfile ./testdata/China.top500 -debug true
-got 500 domains
-stress...
-worker[9]: query 4399.com.[A] rtt:10001069666, err:read udp 10.2.8.179:64435->8.8.8.8:53: i/o timeout
-result: Queries total:200, succeed:199, failed:1, success rate:99.50%, elapsed:10.21(s), TP95:183(Milliseconds)
+$ ./dnstress -s 8.8.8.8 -c 50 -q 1000 -d example.txt -v   
+
+[debug] load query items: 28
+[debug] query: reddit.com(A) RTT: 39ms
+[debug] query: facebook.com(NS) RTT: 40ms
+[debug] query: google.com.hk(A) RTT: 41ms
+[debug] query: youtube.com(AAAA) RTT: 42ms
+...
 ```
