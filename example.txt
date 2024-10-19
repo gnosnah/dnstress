@@ -1,0 +1,31 @@
+# This is a comment and is omitted
+# First column is domain name, second column is query type.
+# The second column can be ignored, the default value is A.
+google.com A
+youtube.com AAAA
+baidu.com MX
+facebook.com NS
+qq.com SOA
+bing.com A
+zhihu.com
+amazon.com
+instagram.com
+twitter.com
+wikipedia.org
+yahoo.com
+csdn.net
+bilibili.com
+whatsapp.com
+linkedin.com
+reddit.com
+taobao.com
+163.com
+yandex.ru
+weibo.com
+zoom.us
+live.com
+google.com.hk
+sina.com.cn
+vk.com
+cctv.com
+github.com
