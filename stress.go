@@ -3,8 +3,7 @@ package dnstress
 import (
 	"bufio"
 	"fmt"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/miekg/dns"
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -12,6 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/miekg/dns"
 )
 
 const (
@@ -19,9 +21,14 @@ const (
 	commentPrefix    = "#"
 )
 
+type queryItem struct {
+	dName string
+	dType string
+}
+
 type Stress struct {
 	cfg        *config
-	qdata      *queryData
+	queries    []*queryItem
 	st         *tStats
 	wg         *sync.WaitGroup
 	start, end time.Time
@@ -53,7 +60,7 @@ func (s *Stress) Init() error {
 	if err != nil {
 		return err
 	}
-	s.qdata = newQueryData(qs)
+	s.queries = qs
 	return nil
 }
 
@@ -81,12 +88,25 @@ func (s *Stress) doQuery() {
 	client.DialTimeout = timeout
 	client.ReadTimeout = timeout
 
+	var rtts []time.Duration
+	if s.cfg.tpSize > 0 {
+		tpSize := int(math.Ceil(float64(s.cfg.tpSize)/float64(s.cfg.conQueryNum)))
+		rtts = make([]time.Duration, tpSize)
+	}
+
+	tIdx := 0
+	qIdx := 0
 	for {
 		if s.shouldStop() {
 			break
 		}
 
-		q := s.qdata.get()
+		if qIdx >= len(s.queries) {
+			qIdx = 0
+		}
+		q := s.queries[qIdx]
+		qIdx++
+
 		dname := dns.Fqdn(q.dName)
 		if q.dType == "" {
 			q.dType = s.cfg.qType
@@ -100,13 +120,20 @@ func (s *Stress) doQuery() {
 		s.st.req.total.Add(1)
 		if err == nil {
 			s.st.req.success.Add(1)
-			s.st.rtt.append(rtt)
+			if tIdx < len(rtts) {
+				rtts[tIdx] = rtt
+				tIdx++
+			}
 			s.debugInfo("query: %s(%s) RTT: %dms", q.dName, q.dType, rtt.Milliseconds())
 		} else {
 			s.st.req.failed.Add(1)
 			s.debugInfo("query: %s(%s) RTT: %dms, err: %v", q.dName, q.dType, rtt.Milliseconds(), err)
 		}
 		resetMsg(&msg)
+	}
+	
+	if s.st.rtt != nil && len(rtts) > 0 {
+		s.st.rtt.append(rtts)
 	}
 
 	s.wg.Done()
@@ -156,7 +183,6 @@ func (s *Stress) Stats() {
 	failed := s.st.req.failed.Load()
 	successRate := float64(success) / float64(total) * 100
 	qps := int(float64(total) / elapsed)
-	tp := s.st.rtt.topPercentile().Milliseconds()
 
 	var rows []table.Row
 	rows = append(rows, table.Row{"Queries total", total})
@@ -164,7 +190,11 @@ func (s *Stress) Stats() {
 	rows = append(rows, table.Row{"Queries failed", failed})
 	rows = append(rows, table.Row{"Queries success rate", fmt.Sprintf("%.2f%%", successRate)})
 	rows = append(rows, table.Row{"Queries QPS", qps}) // average
-	rows = append(rows, table.Row{fmt.Sprintf("Queries RTT TP%d", s.cfg.tp), fmt.Sprintf("%dms", tp)})
+	if s.st.rtt != nil {
+		tp := s.st.rtt.topPercentile().Milliseconds()
+		rows = append(rows, table.Row{fmt.Sprintf("Queries RTT TP%d", s.cfg.tp), fmt.Sprintf("%dms", tp)})
+	}
+
 	rows = append(rows, table.Row{"Queries started at", s.start.Format(time.DateTime)})
 	rows = append(rows, table.Row{"Queries finished at", s.end.Format(time.DateTime)})
 	rows = append(rows, table.Row{"Queries elapsed", fmt.Sprintf("%ds", int(elapsed))})

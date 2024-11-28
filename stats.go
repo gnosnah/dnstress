@@ -1,7 +1,6 @@
 package dnstress
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -32,16 +31,6 @@ type reqStats struct {
 	failed  atomic.Uint64
 }
 
-func (s *reqStats) result(start, end time.Time) string {
-	elapsed := end.Sub(start).Seconds()
-	total := s.total.Load()
-	success := s.success.Load()
-	failed := s.failed.Load()
-	successRate := float64(success) / float64(total) * 100
-	return fmt.Sprintf("[stats-request] total:%d, succeed:%d, failed:%d, success rate:%.2f%%, elapsed:%.2f(s)\n",
-		total, success, failed, successRate, elapsed,
-	)
-}
 
 type rttTopPercentileStats struct {
 	rtts []time.Duration
@@ -50,19 +39,17 @@ type rttTopPercentileStats struct {
 	sync.Mutex
 }
 
-func (s *rttTopPercentileStats) append(rtt time.Duration) {
+func (s *rttTopPercentileStats) append(rtts []time.Duration) {
 	s.Lock()
 	defer s.Unlock()
-	if len(s.rtts) >= s.max {
-		return
-	}
-	s.rtts = append(s.rtts, rtt)
+	s.rtts = append(s.rtts, rtts...)
 }
 
 func (s *rttTopPercentileStats) topPercentile() time.Duration {
 	if len(s.rtts) == 0 {
 		return 0
 	}
+	s.rtts = s.rtts[:s.max]
 	sort.Slice(s.rtts, func(i, j int) bool { return s.rtts[i] < s.rtts[j] })
 	f := math.Ceil(s.tp * float64(len(s.rtts)))
 	idx := int(f)
