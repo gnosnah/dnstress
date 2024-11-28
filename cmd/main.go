@@ -3,11 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+
 	"github.com/gnosnah/dnstress"
 )
 
 const (
-	version = "1.0.0"
+	version = "1.0.1"
 )
 
 var (
