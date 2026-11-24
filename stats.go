@@ -31,28 +31,41 @@ type reqStats struct {
 	failed  atomic.Uint64
 }
 
-
 type rttTopPercentileStats struct {
+	mu   sync.Mutex
 	rtts []time.Duration
 	max  int
 	tp   float64
-	sync.Mutex
 }
 
 func (s *rttTopPercentileStats) append(rtts []time.Duration) {
-	s.Lock()
-	defer s.Unlock()
+	if len(rtts) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.rtts = append(s.rtts, rtts...)
 }
 
 func (s *rttTopPercentileStats) topPercentile() time.Duration {
-	if len(s.rtts) == 0 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	n := len(s.rtts)
+	if n == 0 {
 		return 0
 	}
-	s.rtts = s.rtts[:s.max]
-	sort.Slice(s.rtts, func(i, j int) bool { return s.rtts[i] < s.rtts[j] })
-	f := math.Ceil(s.tp * float64(len(s.rtts)))
-	idx := int(f)
-	val := s.rtts[idx-1]
-	return val
+	if n > s.max {
+		n = s.max
+	}
+	rtts := s.rtts[:n]
+	sort.Slice(rtts, func(i, j int) bool { return rtts[i] < rtts[j] })
+	idx := int(math.Ceil(s.tp * float64(n)))
+	if idx < 1 {
+		idx = 1
+	}
+	if idx > n {
+		idx = n
+	}
+	return rtts[idx-1]
 }

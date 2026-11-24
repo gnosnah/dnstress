@@ -2,8 +2,10 @@ package dnstress
 
 import (
 	"fmt"
-	"github.com/miekg/dns"
 	"net"
+	"strings"
+
+	"github.com/miekg/dns"
 )
 
 var (
@@ -12,7 +14,7 @@ var (
 	defaultMaxQueries      = 0
 	defaultMaxTime         = 0
 	defaultConQueryNum     = 1
-	defaultRttTpSize       = 0
+	defaultRttTpSize       = 50000
 	defaultRttTpVal        = 95
 	defaultQueryTimeoutSec = 5
 	defaultQType           = "A"
@@ -38,7 +40,7 @@ type config struct {
 }
 
 func (cfg *config) verify() error {
-	if cfg.addr == "" || !validIP(cfg.addr) {
+	if cfg.addr == "" || !validAddr(cfg.addr) {
 		return fmt.Errorf("invalid address: %s", cfg.addr)
 	}
 	if cfg.port <= 0 || cfg.port > 65535 {
@@ -53,6 +55,9 @@ func (cfg *config) verify() error {
 	if cfg.maxTime < 0 {
 		return fmt.Errorf("invalid max time: %d", cfg.maxTime)
 	}
+	if cfg.maxQueries == 0 && cfg.maxTime == 0 {
+		return fmt.Errorf("either max queries (-q) or max time (-l) must be > 0")
+	}
 	if cfg.conQueryNum < 1 {
 		return fmt.Errorf("invalid concurrent queries num: %d", cfg.conQueryNum)
 	}
@@ -62,9 +67,10 @@ func (cfg *config) verify() error {
 	if cfg.tp <= 0 || cfg.tp >= 100 {
 		return fmt.Errorf("invalid RTT statistics top percentile value: %d", cfg.tp)
 	}
-	if cfg.timeout < 0 {
+	if cfg.timeout <= 0 {
 		return fmt.Errorf("invalid query timeout: %d", cfg.timeout)
 	}
+	cfg.qType = strings.ToUpper(strings.TrimSpace(cfg.qType))
 	if cfg.qType == "" || !validQType(cfg.qType) {
 		return fmt.Errorf("invalid qtype: %s", cfg.qType)
 	}
@@ -72,13 +78,19 @@ func (cfg *config) verify() error {
 }
 
 func validQType(s string) bool {
-	_, ok := dns.StringToType[s]
+	_, ok := dns.StringToType[strings.ToUpper(s)]
 	return ok
 }
 
-func validIP(s string) bool {
-	ip := net.ParseIP(s)
-	return ip != nil
+func validAddr(s string) bool {
+	if net.ParseIP(s) != nil {
+		return true
+	}
+	s = strings.TrimSpace(s)
+	if s == "" || strings.ContainsAny(s, " \t") {
+		return false
+	}
+	return true
 }
 
 func defaultConfig() *config {
@@ -144,14 +156,19 @@ func WithEnableDNSSEC(n bool) Option {
 
 func WithQType(qt string) Option {
 	return func(s *Stress) {
-		s.cfg.qType = qt
+		s.cfg.qType = strings.ToUpper(strings.TrimSpace(qt))
 	}
 }
 
-func WithShowProcess(show bool) Option {
+func WithShowProgress(show bool) Option {
 	return func(s *Stress) {
 		s.cfg.showProgress = show
 	}
+}
+
+// WithShowProcess is kept for compatibility; prefer WithShowProgress.
+func WithShowProcess(show bool) Option {
+	return WithShowProgress(show)
 }
 
 func WithShowDebug(show bool) Option {
